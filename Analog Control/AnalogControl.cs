@@ -59,7 +59,7 @@ namespace AnalogControl
                 if (target == null)
                 {
                     target = new Texture2D(500, 500);
-                    target.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control/PluginData/AnalogControl/crosshair-white.png"));
+                    target.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control Continued/PluginData/AnalogControl/crosshair-white.png"));
                 }
                 setTransparency(target, transparency);
                 targetRect = new Rect();
@@ -76,7 +76,7 @@ namespace AnalogControl
                 if (markerSpot == null)
                 {
                     markerSpot = new Texture2D(20, 20);
-                    markerSpot.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control/PluginData/AnalogControl/spot-white.png"));
+                    markerSpot.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control Continued/PluginData/AnalogControl/spot-white.png"));
                 }
                     setTransparency(markerSpot, transparency);
                     markerRect = new Rect(controlZone.center.x - 10, controlZone.center.y - 10, 20, 20);
