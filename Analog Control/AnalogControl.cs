@@ -10,7 +10,8 @@ namespace AnalogControl
         {
             Inactive,
             Active,
-            Paused
+            Paused,
+            TemporaryPaused
         }
         bool firstStart = true;
         // state
@@ -58,7 +59,7 @@ namespace AnalogControl
                 if (target == null)
                 {
                     target = new Texture2D(500, 500);
-                    target.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control/PluginData/AnalogControl/crosshair.png"));
+                    target.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control/PluginData/AnalogControl/crosshair-white.png"));
                 }
                 setTransparency(target, transparency);
                 targetRect = new Rect();
@@ -75,10 +76,10 @@ namespace AnalogControl
                 if (markerSpot == null)
                 {
                     markerSpot = new Texture2D(20, 20);
-                    markerSpot.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control/PluginData/AnalogControl/spot.png"));
+                    markerSpot.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control/PluginData/AnalogControl/spot-white.png"));
                 }
                     setTransparency(markerSpot, transparency);
-                    markerRect = new Rect(0, 0, 20, 20);
+                    markerRect = new Rect(controlZone.center.x - 10, controlZone.center.y - 10, 20, 20);
             }
             catch
             {
@@ -93,13 +94,13 @@ namespace AnalogControl
 
             isPitchInverted = config.GetValue<bool>("pitchInvert", true);
             transparency = config.GetValue<float>("transparency", 1);
-            deadzone = config.GetValue<Vector2>("deadzone", new Vector2(0.05f, 0.05f));
+            deadzone = config.GetValue<Vector2>("deadzone", new Vector2(0.05f * Screen.height / Screen.width, 0.05f));
             controlZone = config.GetValue<Rect>("controlZone", new Rect(Screen.width / 6, Screen.height / 6, Screen.width * 2 / 3, Screen.height * 2 / 3));
             activate = new customKeybind(config.GetValue<KeyCode>("activate", KeyCode.Return));
             modeSwitch = new customKeybind(config.GetValue<KeyCode>("modeSwitch", KeyCode.Tab));
             windowKey = new customKeybind(config.GetValue<KeyCode>("windowKey", KeyCode.O));
             lockKey = new customKeybind(config.GetValue<KeyCode>("lockKey", KeyCode.L));
-            pauseKey = new customKeybind(config.GetValue<KeyCode>("pauseKey", KeyCode.Mouse0));
+            pauseKey = new customKeybind(config.GetValue<KeyCode>("pauseKey", KeyCode.O));
         }
         
         private void saveConfig()
@@ -146,6 +147,14 @@ namespace AnalogControl
                 controlState = controlState == activationState.Paused ? activationState.Active : activationState.Paused;
                 firstStart = false;
             }
+            
+            if (Input.GetKeyDown(KeyCode.Mouse1) && controlState == activationState.Active) {
+            	controlState = activationState.TemporaryPaused;
+            }
+            
+            if (Input.GetKeyUp(KeyCode.Mouse1) && controlState == activationState.TemporaryPaused) {
+            	controlState = activationState.Active;
+            }
         }
 
         public void dragWindow()
@@ -178,8 +187,10 @@ namespace AnalogControl
                 controlZone = GUILayout.Window(GetInstanceID(), controlZone, locationWindow, "", GUI.skin.box);
             if (controlState != activationState.Inactive || showWindow)
             {
-                Graphics.DrawTexture(targetRect, target);
-                Graphics.DrawTexture(markerRect, markerSpot);
+            	GUI.color = isRollMode ? Color.green : Color.yellow;
+                GUI.DrawTexture(targetRect, target);
+                GUI.color = controlState == activationState.Paused || controlState == activationState.TemporaryPaused ? Color.red : Color.green;
+                GUI.DrawTexture(markerRect, markerSpot);              
             }
         }
         
@@ -302,13 +313,15 @@ namespace AnalogControl
                 markerRect.center = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
 
             float vertDisplacement = 2 * (markerRect.center.y - controlZone.center.y) / controlZone.height;
-            state.pitch = (isPitchInverted ? -1 : 1) * response(vertDisplacement, deadzone.y, state.pitchTrim);
+            state.pitch = (isPitchInverted ? 1 : -1) * response(vertDisplacement, deadzone.y, state.pitchTrim);
 
             float hrztDisplacement = 2 * (markerRect.center.x - controlZone.center.x) / controlZone.width;
             if (isRollMode)
                 state.roll = response(hrztDisplacement, deadzone.x, state.rollTrim);
-            else
+            else {
                 state.yaw = response(hrztDisplacement, deadzone.x, state.yawTrim);
+                state.wheelSteer = -response(hrztDisplacement, deadzone.x, state.wheelSteerTrim);
+            }
 
             return state;
         }
