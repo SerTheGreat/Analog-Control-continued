@@ -6,53 +6,32 @@ namespace AnalogControl
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class AnalogControl : MonoBehaviour
     {
-        enum activationState
-        {
-            Inactive,
-            Active,
-            Paused,
-            TemporaryPaused
-        }
+    	
+    	const float STEERING_ABSOLUTE_DEAD_ZONE = 0.001f;
+
+    	Configuration config;
+        
         bool firstStart = true;
         // state
         bool isRollMode = true;
-        activationState controlState = activationState.Inactive;
-        // settings
-        bool isPitchInverted = true;
-        float transparency = 1; // 0 == transparent, 1 == opaque
-        Vector2 deadzone;
-        Rect controlZone;
-        // config
-        KSP.IO.PluginConfiguration config;
+        ActivationState controlState = ActivationState.Inactive;
+        
         // display
         static Texture2D target;
-        Rect targetRect;
 
         static Texture2D markerSpot;
-        Rect markerRect;
-
-        bool showWindow = false;
-        customKeybind activate, modeSwitch, windowKey, lockKey, pauseKey;
+        Rect markerRect;        
 
         bool lockInput = false;
-
-        class customKeybind
-        {
-            public KeyCode currentBind { get; set; }
-            public bool set { get; set; }
-            public customKeybind(KeyCode defKey)
-            {
-                currentBind = defKey;
-                set = true;
-            }
-        }
+        
+        ActuatorOverride actuatorOverride = new ActuatorOverride();    
         
         /// <summary>
         /// Initialise control region size and other user specific params
         /// </summary>
         public void Start()
         {
-            loadConfig();
+            config = Configuration.loadConfig();
 
             try
             {
@@ -61,11 +40,8 @@ namespace AnalogControl
                     target = new Texture2D(500, 500);
                     target.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control Continued/PluginData/AnalogControl/crosshair-white.png"));
                 }
-                setTransparency(target, transparency);
-                targetRect = new Rect();
-                targetRect.width = controlZone.width * deadzone.x * 1.5f;
-                targetRect.height = controlZone.height * deadzone.y * 1.5f;
-                targetRect.center = controlZone.center;
+                setTransparency(target, config.transparency);
+                
             }
             catch
             {
@@ -78,8 +54,8 @@ namespace AnalogControl
                     markerSpot = new Texture2D(20, 20);
                     markerSpot.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control Continued/PluginData/AnalogControl/spot-white.png"));
                 }
-                    setTransparency(markerSpot, transparency);
-                    markerRect = new Rect(controlZone.center.x - 10, controlZone.center.y - 10, 20, 20);
+                    setTransparency(markerSpot, config.transparency);
+                    markerRect = new Rect(config.controlZone.center.x - 10, config.controlZone.center.y - 10, 20, 20);
             }
             catch
             {
@@ -87,41 +63,11 @@ namespace AnalogControl
             }
         }
         
-        private void loadConfig()
-        {
-            config = KSP.IO.PluginConfiguration.CreateForType<AnalogControl>();
-            config.load();
-
-            isPitchInverted = config.GetValue<bool>("pitchInvert", true);
-            transparency = config.GetValue<float>("transparency", 1);
-            deadzone = config.GetValue<Vector2>("deadzone", new Vector2(0.05f * Screen.height / Screen.width, 0.05f));
-            controlZone = config.GetValue<Rect>("controlZone", new Rect(Screen.width / 6, Screen.height / 6, Screen.width * 2 / 3, Screen.height * 2 / 3));
-            activate = new customKeybind(config.GetValue<KeyCode>("activate", KeyCode.Return));
-            modeSwitch = new customKeybind(config.GetValue<KeyCode>("modeSwitch", KeyCode.Tab));
-            windowKey = new customKeybind(config.GetValue<KeyCode>("windowKey", KeyCode.O));
-            lockKey = new customKeybind(config.GetValue<KeyCode>("lockKey", KeyCode.L));
-            pauseKey = new customKeybind(config.GetValue<KeyCode>("pauseKey", KeyCode.O));
-        }
-        
-        private void saveConfig()
-        {
-            config["pitchInvert"] = isPitchInverted;
-            config["transparency"] = transparency;
-            config["deadzone"] = deadzone;
-            config["controlZone"] = controlZone;
-            config["activate"] = activate.currentBind;
-            config["modeSwitch"] = modeSwitch.currentBind;
-            config["windowKey"] = windowKey.currentBind;
-            config["lockKey"] = lockKey.currentBind;
-            config["pauseKey"] = pauseKey.currentBind;
-            config.save();
-        }
-        
         public void OnDestroy()
         {
             //MonoBehaviour.Destroy(markerSpot);
             //MonoBehaviour.Destroy(target);
-            saveConfig();
+            config.saveConfig();
         }
 
         /// <summary>
@@ -129,173 +75,62 @@ namespace AnalogControl
         /// </summary>
         public void Update()
         {
-            dragWindow();
-            if (Input.GetKeyDown(lockKey.currentBind) && GameSettings.MODIFIER_KEY.GetKey())
+            config.dragWindow();
+            if (Input.GetKeyDown(config.lockKey.currentBind) && GameSettings.MODIFIER_KEY.GetKey())
                 lockInput = !lockInput;
             if (lockInput)
                 return;
-            if (Input.GetKeyDown(activate.currentBind))
-                controlState = (controlState == activationState.Inactive) ? activationState.Paused : activationState.Inactive;
-            if (controlState == activationState.Inactive)
+            if (Input.GetKeyDown(config.activate.currentBind)) {
+            	if (controlState == ActivationState.Inactive) {
+            		controlState = ActivationState.Paused;
+            		actuatorOverride.apply(FlightGlobals.ActiveVessel, config.aeroActuatorScale, config.steeringSpeedScale, isRollMode);
+            	} else {
+            		controlState = ActivationState.Inactive;
+            		actuatorOverride.restore(FlightGlobals.ActiveVessel);
+            	}
+            }
+            if (controlState == ActivationState.Inactive)
                 return;
 
-            if (Input.GetKeyDown(modeSwitch.currentBind))
+            if (Input.GetKeyDown(config.modeSwitch.currentBind)) {
+            	actuatorOverride.restore(FlightGlobals.ActiveVessel);
                 isRollMode = !isRollMode;
+                actuatorOverride.apply(FlightGlobals.ActiveVessel, config.aeroActuatorScale, config.steeringSpeedScale, isRollMode);
+            }
 
-            if (Input.GetKeyDown(pauseKey.currentBind))
+            if (Input.GetKeyDown(config.pauseKey.currentBind))
             {
-                controlState = controlState == activationState.Paused ? activationState.Active : activationState.Paused;
+                controlState = controlState == ActivationState.Paused ? ActivationState.Active : ActivationState.Paused;
                 firstStart = false;
             }
             
-            if (Input.GetKeyDown(KeyCode.Mouse1) && controlState == activationState.Active) {
-            	controlState = activationState.TemporaryPaused;
+            if (Input.GetKeyDown(KeyCode.Mouse1) && controlState == ActivationState.Active) {
+            	controlState = ActivationState.TemporaryPaused;
             }
             
-            if (Input.GetKeyUp(KeyCode.Mouse1) && controlState == activationState.TemporaryPaused) {
-            	controlState = activationState.Active;
+            if (Input.GetKeyUp(KeyCode.Mouse1) && controlState == ActivationState.TemporaryPaused) {
+            	controlState = ActivationState.Active;
             }
-        }
-
-        public void dragWindow()
-        {
-            if (GameSettings.MODIFIER_KEY.GetKey() && Input.GetKeyDown(windowKey.currentBind))
-                showWindow = !showWindow;
-            if (showWindow)
-            {
-                if (draggingBottomRight)
-                {
-                    if (!Input.GetMouseButton(0))
-                        draggingBottomRight = false;
-                    else
-                    {
-                        Vector2 diff = (Vector2)Input.mousePosition - dragPos;
-                        controlZone.width += diff.x;
-                        controlZone.height -= diff.y;
-                        dragPos = Input.mousePosition;
-                    }
-                }
-                targetRect.center = controlZone.center;
-                targetRect.width = controlZone.width * deadzone.x * 1.5f;
-                targetRect.height = controlZone.height * deadzone.y * 1.5f;
-            }
-        }
+        }        
 
         public void OnGUI()
         {
-            if (showWindow)
-                controlZone = GUILayout.Window(GetInstanceID(), controlZone, locationWindow, "", GUI.skin.box);
-            if (controlState != activationState.Inactive || showWindow)
+        	config.onGUI(GetInstanceID(), controlState);
+            if (controlState != ActivationState.Inactive || config.showWindow)
             {
             	GUI.color = isRollMode ? Color.green : Color.yellow;
-                GUI.DrawTexture(targetRect, target);
-                GUI.color = controlState == activationState.Paused || controlState == activationState.TemporaryPaused ? Color.red : Color.green;
+                GUI.DrawTexture(config.targetRect, target);
+                GUI.color = controlState == ActivationState.Paused || controlState == ActivationState.TemporaryPaused ? Color.red : Color.green;
                 GUI.DrawTexture(markerRect, markerSpot);              
             }
         }
         
-        bool draggingBottomRight;
-        Vector2 dragPos;
-        void locationWindow(int id)
-        {
-            if (controlState == activationState.Inactive)
-            {
-                if (GUILayout.Button("Window Key: " + GameSettings.MODIFIER_KEY.primary.ToString() + " + => " + (windowKey.set ? windowKey.currentBind.ToString() : "Not Assigned")))
-                    windowKey.set = !windowKey.set;
-                if (!windowKey.set)
-                {
-                    if (Input.GetMouseButton(0) || Event.current.keyCode == KeyCode.Escape)
-                        windowKey.set = true;
-                    else if (Event.current.type == EventType.KeyDown)
-                    {
-                        windowKey.currentBind = Event.current.keyCode;
-                        windowKey.set = true;
-                    }
-                }
-                
-                if (GUILayout.Button("Activate Key => " + (activate.set ? activate.currentBind.ToString() : "Not Assigned")))
-                    activate.set = !activate.set;
-                if (!activate.set)
-                {
-                    if (Input.GetMouseButton(0) || Event.current.keyCode == KeyCode.Escape)
-                        activate.set = true;
-                    else if (Event.current.type == EventType.KeyDown)
-                    {
-                        activate.currentBind = Event.current.keyCode;
-                        activate.set = true;
-                    }
-                }
-
-                if (GUILayout.Button("Mode Switch Key => " + (modeSwitch.set ? modeSwitch.currentBind.ToString() : "Not Assigned")))
-                    modeSwitch.set = !modeSwitch.set;
-                if (!modeSwitch.set)
-                {
-                    if (Input.GetMouseButton(0) || Event.current.keyCode == KeyCode.Escape)
-                        modeSwitch.set = true;
-                    else if (Event.current.type == EventType.KeyDown)
-                    {
-                        modeSwitch.currentBind = Event.current.keyCode;
-                        modeSwitch.set = true;
-                    }
-                }
-
-                if (GUILayout.Button("Lock Key: " + GameSettings.MODIFIER_KEY.primary.ToString() + " + => " + (lockKey.set ? lockKey.currentBind.ToString() : "Not Assigned")))
-                    lockKey.set = !lockKey.set;
-                if (!lockKey.set)
-                {
-                    if (Input.GetMouseButton(0) || Event.current.keyCode == KeyCode.Escape)
-                        lockKey.set = true;
-                    else if (Event.current.type == EventType.KeyDown)
-                    {
-                        lockKey.currentBind = Event.current.keyCode;
-                        lockKey.set = true;
-                    }
-                }
-                if (GUILayout.Button("Pause Key => " + (pauseKey.set ? pauseKey.currentBind.ToString() : "Not Assigned")))
-                    pauseKey.set = !pauseKey.set;
-                if (!pauseKey.set)
-                {
-                    if (Event.current.keyCode == KeyCode.Escape)
-                        pauseKey.set = true;
-                    else if (Event.current.type == EventType.KeyDown)
-                    {
-                        pauseKey.currentBind = Event.current.keyCode;
-                        pauseKey.set = true;
-                    }
-                }
-                isPitchInverted = GUILayout.Toggle(isPitchInverted, "Invert Pitch Control");
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Deadzone width percentage");
-                deadzone.x = float.Parse(GUILayout.TextField((deadzone.x * 100).ToString("0.00"))) / 100;
-                GUILayout.EndHorizontal();
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("Deadzone height percentage");
-                deadzone.y = float.Parse(GUILayout.TextField((deadzone.y * 100).ToString("0.00"))) / 100;
-                GUILayout.EndHorizontal();
-
-                GUILayout.FlexibleSpace();
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                if (GUILayout.RepeatButton("*"))
-                {
-                    draggingBottomRight = true;
-                    dragPos = Input.mousePosition;
-                }
-                GUILayout.EndHorizontal();
-                GUI.DragWindow();
-            }
-            else
-            {
-                GUILayout.FlexibleSpace();
-            }
-        }
-
         /// <summary>
         /// fixed update for the actual control
         /// </summary>
         public void FixedUpdate()
         {
-            if (firstStart || controlState == activationState.Inactive)
+            if (firstStart || controlState == ActivationState.Inactive)
                 return;
             
             FlightGlobals.ActiveVessel.ctrlState = mouseControlVessel(FlightGlobals.ActiveVessel.ctrlState);
@@ -309,18 +144,22 @@ namespace AnalogControl
         private FlightCtrlState mouseControlVessel(FlightCtrlState state)
         {
             // (0,0) is bottom left of screen for mouse pos, top left for UI
-            if (controlState == activationState.Active)
+            if (controlState == ActivationState.Active)
                 markerRect.center = new Vector2(Input.mousePosition.x, Screen.height - Input.mousePosition.y);
 
-            float vertDisplacement = 2 * (markerRect.center.y - controlZone.center.y) / controlZone.height;
-            state.pitch = (isPitchInverted ? 1 : -1) * response(vertDisplacement, deadzone.y, state.pitchTrim);
+            float vertDisplacement = 2 * (markerRect.center.y - config.controlZone.center.y) / config.controlZone.height;
+            state.pitch = (config.isPitchInverted ? 1 : -1) * response(vertDisplacement, config.deadzone.y, state.pitchTrim);
 
-            float hrztDisplacement = 2 * (markerRect.center.x - controlZone.center.x) / controlZone.width;
+            float hrztDisplacement = 2 * (markerRect.center.x - config.controlZone.center.x) / config.controlZone.width;
             if (isRollMode)
-                state.roll = response(hrztDisplacement, deadzone.x, state.rollTrim);
+                state.roll = response(hrztDisplacement, config.deadzone.x, state.rollTrim);
             else {
-                state.yaw = response(hrztDisplacement, deadzone.x, state.yawTrim);
-                state.wheelSteer = -response(hrztDisplacement, deadzone.x, state.wheelSteerTrim);
+                state.yaw = response(hrztDisplacement, config.deadzone.x, state.yawTrim);
+                float wheelSteer = -response(hrztDisplacement, config.deadzone.x, state.wheelSteerTrim);
+                if (Math.Abs(wheelSteer) < STEERING_ABSOLUTE_DEAD_ZONE) { //this eliminates steering wobble on very low steer values
+                	wheelSteer = 0;
+                }
+                state.wheelSteer = wheelSteer;
             }
 
             return state;
@@ -332,9 +171,9 @@ namespace AnalogControl
                 return trim;
             
             if (displacement > 0) // +ve displacement
-                displacement = (displacement - deadzone) / (1 - deadzone);
+            	displacement = Mathf.Clamp((displacement - deadzone), 0, float.MaxValue) / (1 - deadzone);
             else // -ve displacement
-                displacement = (displacement + deadzone) / (1 - deadzone);
+            	displacement = Mathf.Clamp((displacement + deadzone), float.MinValue, 0) / (1 - deadzone);
 
             float response = displacement * displacement * Math.Sign(displacement); // displacement^2 gives nice fine control
             // trim compensation
