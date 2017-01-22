@@ -47,10 +47,6 @@ namespace AnalogControl
         	
         	Configuration instance = new Configuration();
         	
-        	instance.targetRect.width = instance.controlZone.width * instance.deadzone.x * 1.5f;
-        	instance.targetRect.height = instance.controlZone.height * instance.deadzone.y * 1.5f;
-        	instance.targetRect.center = instance.controlZone.center;
-        	
             instance.config = KSP.IO.PluginConfiguration.CreateForType<AnalogControl>();
             instance.config.load();
 
@@ -63,6 +59,10 @@ namespace AnalogControl
             instance.windowKey = new CustomKeybind(instance.config.GetValue<KeyCode>("windowKey", KeyCode.O));
             instance.lockKey = new CustomKeybind(instance.config.GetValue<KeyCode>("lockKey", KeyCode.L));
             instance.pauseKey = new CustomKeybind(instance.config.GetValue<KeyCode>("pauseKey", KeyCode.O));
+            
+            instance.targetRect.width = instance.controlZone.width * instance.deadzone.x * 1.5f;
+        	instance.targetRect.height = instance.controlZone.height * instance.deadzone.y * 1.5f;
+        	instance.targetRect.center = instance.controlZone.center;
             
             return instance;
         }
@@ -91,9 +91,7 @@ namespace AnalogControl
         }
         
         public void dragWindow()
-        {
-            if (GameSettings.MODIFIER_KEY.GetKey() && Input.GetKeyDown(windowKey.currentBind))
-                showWindow = !showWindow;
+        {          
             if (showWindow)
             {
                 if (draggingBottomRight)

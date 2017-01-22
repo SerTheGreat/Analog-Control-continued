@@ -55,6 +55,7 @@
     <Compile Include="AnalogControl.cs" />
     <Compile Include="ActivationState.cs" />
     <Compile Include="Configuration.cs" />
+    <Compile Include="PersistantValues.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
