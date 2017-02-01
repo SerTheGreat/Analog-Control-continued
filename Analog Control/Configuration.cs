@@ -16,8 +16,8 @@ namespace AnalogControl
         public float transparency = 1; // 0 == transparent, 1 == opaque
         public Vector2 deadzone;
         public Rect controlZone;
-        public float aeroActuatorScale = 10;
-        public float steeringSpeedScale = 20;
+        public float aeroActuatorScale;
+        public float steeringSpeedScale;
 		public CustomKeybind activate, modeSwitch, windowKey, lockKey, pauseKey;        
         
         // config
@@ -51,9 +51,11 @@ namespace AnalogControl
             instance.config.load();
 
             instance.isPitchInverted = instance.config.GetValue<bool>("pitchInvert", true);
-            instance.transparency = instance.config.GetValue<float>("transparency", 1);
+            instance.transparency = (float)instance.config.GetValue<double>("transparency", 1f);
             instance.deadzone = instance.config.GetValue<Vector2>("deadzone", new Vector2(0.05f * Screen.height / Screen.width, 0.05f));
             instance.controlZone = instance.config.GetValue<Rect>("controlZone", DEFAULT_CONTROL_ZONE);
+            instance.aeroActuatorScale = (float)instance.config.GetValue<double>("aeroActuatorScale", 10f);
+            instance.steeringSpeedScale = (float)instance.config.GetValue<double>("steeringSpeedScale", 10f);
             instance.activate = new CustomKeybind(instance.config.GetValue<KeyCode>("activate", KeyCode.Return));
             instance.modeSwitch = new CustomKeybind(instance.config.GetValue<KeyCode>("modeSwitch", KeyCode.Tab));
             instance.windowKey = new CustomKeybind(instance.config.GetValue<KeyCode>("windowKey", KeyCode.O));
@@ -70,16 +72,16 @@ namespace AnalogControl
         public void saveConfig()
         {
             config["pitchInvert"] = isPitchInverted;
-            config["transparency"] = transparency;
+            config["transparency"] = (double)transparency;
             config["deadzone"] = deadzone;
             config["controlZone"] = controlZone;
-            config["aeroActuatorScale"] = aeroActuatorScale;
-            config["steeringSpeedScale"] = steeringSpeedScale;
+            config["aeroActuatorScale"] = (double)aeroActuatorScale;
+            config["steeringSpeedScale"] = (double)steeringSpeedScale;
             config["activate"] = activate.currentBind;
             config["modeSwitch"] = modeSwitch.currentBind;
             config["windowKey"] = windowKey.currentBind;
             config["lockKey"] = lockKey.currentBind;
-            config["pauseKey"] = pauseKey.currentBind;          
+            config["pauseKey"] = pauseKey.currentBind;
             config.save();
         }
         
@@ -122,6 +124,9 @@ namespace AnalogControl
             	GUILayout.BeginHorizontal();
             	GUILayout.FlexibleSpace();
             	showWindow = !GUILayout.Button("✖");
+            	if (!showWindow) {
+            		saveConfig();
+            	}
             	GUILayout.EndHorizontal();
             	
             	//GUILayout.FlexibleSpace(); //This centers settings vertically
@@ -212,6 +217,11 @@ namespace AnalogControl
                 GUILayout.Label("Wheel steering response", GUILayout.Width(200));
                 steeringSpeedScale = GUILayout.HorizontalSlider(steeringSpeedScale, 1, 10f, GUILayout.Width(100));
                 GUILayout.EndHorizontal();
+                
+                /*GUILayout.BeginHorizontal();
+                GUILayout.Label("HUD transparency", GUILayout.Width(200));
+                transparency = GUILayout.HorizontalSlider(transparency, 0, 1, GUILayout.Width(100));
+                GUILayout.EndHorizontal();*/
              
                 GUILayout.EndVertical();
                 GUILayout.FlexibleSpace();

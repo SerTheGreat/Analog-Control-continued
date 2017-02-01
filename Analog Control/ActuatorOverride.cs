@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using ModuleWheels;
 using System.Reflection;
+using UnityEngine;
 
 namespace AnalogControl
 {
@@ -14,6 +15,7 @@ namespace AnalogControl
 		private static FieldInfo farField = null; //Reflection is used to get/set FAR field value to avoid coupling
 		
 		private Dictionary<int, float> savedActuatorValues = new Dictionary<int, float>();
+		private Dictionary<int, SteeringProperties> savedSteeringValues = new Dictionary<int, SteeringProperties>();
 		private double savedFARValue;
 		
 		public void apply(Vessel vessel, float aeroScale, float wheelScale, bool isRollMode) {
@@ -77,11 +79,16 @@ namespace AnalogControl
 				}*/
 				List<ModuleWheelSteering> wheelModules = vessel.FindPartModulesImplementing<ModuleWheelSteering>();
 				for (int i = 0; i < wheelModules.Count; i++) {
-					if (savedActuatorValues.ContainsKey(wheelModules[i].GetInstanceID())) {
+					if (savedSteeringValues.ContainsKey(wheelModules[i].GetInstanceID())) {
 						continue;
 					}
-					savedActuatorValues.Add(wheelModules[i].GetInstanceID(), wheelModules[i].steeringResponse);
+					
+					savedSteeringValues.Add(wheelModules[i].GetInstanceID(), new SteeringProperties(wheelModules[i].steeringResponse, wheelModules[i].steeringCurve.Curve));
 					wheelModules[i].steeringResponse *= wheelScale;
+					Keyframe[] keys = wheelModules[i].steeringCurve.Curve.keys; 
+					if (keys.Length > 0) {
+						wheelModules[i].steeringCurve.Curve = AnimationCurve.Linear(keys[0].time, keys[0].value, keys[keys.Length - 1].time, keys[keys.Length - 1].value);
+					}
 				}
 			}
 		}
@@ -112,10 +119,11 @@ namespace AnalogControl
 			
 			List<ModuleWheelSteering> wheelModules = vessel.FindPartModulesImplementing<ModuleWheelSteering>();
 			for (int i = 0; i < wheelModules.Count; i++) {
-				float savedValue;
-				if (savedActuatorValues.TryGetValue(wheelModules[i].GetInstanceID(), out savedValue)) {
-					wheelModules[i].steeringResponse = savedValue;
-					savedActuatorValues.Remove(wheelModules[i].GetInstanceID());
+				SteeringProperties savedValues;
+				if (savedSteeringValues.TryGetValue(wheelModules[i].GetInstanceID(), out savedValues)) {
+					wheelModules[i].steeringResponse = savedValues.steeringResponse;
+					wheelModules[i].steeringCurve.Curve = savedValues.steeringCurve;
+					savedSteeringValues.Remove(wheelModules[i].GetInstanceID());
 				}
 			}
 			

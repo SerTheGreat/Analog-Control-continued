@@ -1,13 +1,16 @@
 ﻿using System;
 using UnityEngine;
 
+using System.Collections.Generic;
+using ModuleWheels;
+
 namespace AnalogControl
 {
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class AnalogControl : MonoBehaviour
     {
     	
-    	const float STEERING_ABSOLUTE_DEAD_ZONE = 0.001f;
+    	const float STEERING_OUTPUT_GAIN = 0.001f; //This must be added to output because below this value stock steering goes mad acquiring NaN angles several times per second 
     	const string PERSISTENCE_NODE_NAME = "AnalogControl";
 
     	Configuration config;
@@ -166,6 +169,12 @@ namespace AnalogControl
             if (Input.GetKeyUp(KeyCode.Mouse1) && controlState == ActivationState.TemporaryPaused) {
             	controlState = ActivationState.Active;
             }
+            /*if (GameSettings.MODIFIER_KEY.GetKey() && GameSettings.BRAKES.GetKeyUp()) {
+            	List<ModuleWheelBrakes> modules = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ModuleWheelBrakes>();
+            	for (int i = 0; i < modules.Count; i++) {
+            		modules[i].brakeInput = 1f;
+            	}
+            }*/
         }        
 
         public void OnGUI()
@@ -210,17 +219,19 @@ namespace AnalogControl
                 state.roll = response(hrztDisplacement, config.deadzone.x, state.rollTrim);
             else {
                 state.yaw = response(hrztDisplacement, config.deadzone.x, state.yawTrim);
-                float wheelSteer = -response(hrztDisplacement, config.deadzone.x, state.wheelSteerTrim);
-                if (Math.Abs(wheelSteer) < STEERING_ABSOLUTE_DEAD_ZONE) { //this eliminates steering wobble on very low steer values
-                	wheelSteer = 0;
-                }
+                float wheelSteer = -response(hrztDisplacement, config.deadzone.x, state.wheelSteerTrim, STEERING_OUTPUT_GAIN);
                 state.wheelSteer = wheelSteer;
+                KSPLog.print("=== WheelSteer " + wheelSteer);
+                List<ModuleWheelSteering> wheelModules = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ModuleWheelSteering>();
+                foreach (ModuleWheelSteering module in wheelModules) {
+                	KSPLog.print("=== steerAngle " + module.steerAngle);
+                }
             }
 
             return state;
         }
 
-        private float response(float displacement, float deadzone, float trim)
+        private float response(float displacement, float deadzone, float trim, float outputGain = 0f)
         {
             if (Math.Abs(displacement) < deadzone) // deadzone
                 return trim;
@@ -233,9 +244,9 @@ namespace AnalogControl
             float response = displacement * displacement * Math.Sign(displacement); // displacement^2 gives nice fine control
             // trim compensation
             if (response > 0)
-                response = trim + response * (1 - trim);
+                response = outputGain + trim + response * (1 - trim);
             else
-                response = trim + response * (1 + trim);
+                response = -outputGain + trim + response * (1 + trim);
 
             return Mathf.Clamp(response, -1, 1);
         }
