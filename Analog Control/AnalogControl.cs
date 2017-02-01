@@ -147,6 +147,16 @@ namespace AnalogControl
             		actuatorOverride.restore(FlightGlobals.ActiveVessel);
             	}
             }
+            
+            if (GameSettings.MODIFIER_KEY.GetKey() && (Input.GetKeyDown(config.parkingBrakeKey.currentBind) || Input.GetKeyUp(config.parkingBrakeKey.currentBind))) {
+            	FlightGlobals.ActiveVessel.ActionGroups.SetGroup(KSPActionGroup.Brakes, true);
+            	/*List<ModuleWheelBrakes> modules = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ModuleWheelBrakes>();
+            	for (int i = 0; i < modules.Count; i++) {
+            		modules[i].brakeInput = 1f;
+            		
+            	}*/
+            }
+            
             if (controlState == ActivationState.Inactive)
                 return;
 
@@ -169,12 +179,6 @@ namespace AnalogControl
             if (Input.GetKeyUp(KeyCode.Mouse1) && controlState == ActivationState.TemporaryPaused) {
             	controlState = ActivationState.Active;
             }
-            /*if (GameSettings.MODIFIER_KEY.GetKey() && GameSettings.BRAKES.GetKeyUp()) {
-            	List<ModuleWheelBrakes> modules = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ModuleWheelBrakes>();
-            	for (int i = 0; i < modules.Count; i++) {
-            		modules[i].brakeInput = 1f;
-            	}
-            }*/
         }        
 
         public void OnGUI()
@@ -220,12 +224,7 @@ namespace AnalogControl
             else {
                 state.yaw = response(hrztDisplacement, config.deadzone.x, state.yawTrim);
                 float wheelSteer = -response(hrztDisplacement, config.deadzone.x, state.wheelSteerTrim, STEERING_OUTPUT_GAIN);
-                state.wheelSteer = wheelSteer;
-                KSPLog.print("=== WheelSteer " + wheelSteer);
-                List<ModuleWheelSteering> wheelModules = FlightGlobals.ActiveVessel.FindPartModulesImplementing<ModuleWheelSteering>();
-                foreach (ModuleWheelSteering module in wheelModules) {
-                	KSPLog.print("=== steerAngle " + module.steerAngle);
-                }
+                state.wheelSteer = wheelSteer;                
             }
 
             return state;

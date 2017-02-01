@@ -18,7 +18,7 @@ namespace AnalogControl
         public Rect controlZone;
         public float aeroActuatorScale;
         public float steeringSpeedScale;
-		public CustomKeybind activate, modeSwitch, windowKey, lockKey, pauseKey;        
+		public CustomKeybind activate, modeSwitch, windowKey, lockKey, pauseKey, parkingBrakeKey;        
         
         // config
         private KSP.IO.PluginConfiguration config;
@@ -61,6 +61,7 @@ namespace AnalogControl
             instance.windowKey = new CustomKeybind(instance.config.GetValue<KeyCode>("windowKey", KeyCode.O));
             instance.lockKey = new CustomKeybind(instance.config.GetValue<KeyCode>("lockKey", KeyCode.L));
             instance.pauseKey = new CustomKeybind(instance.config.GetValue<KeyCode>("pauseKey", KeyCode.O));
+            instance.parkingBrakeKey = new CustomKeybind(instance.config.GetValue<KeyCode>("parkingBrakeKey", GameSettings.BRAKES.primary));
             
             instance.targetRect.width = instance.controlZone.width * instance.deadzone.x * 1.5f;
         	instance.targetRect.height = instance.controlZone.height * instance.deadzone.y * 1.5f;
@@ -82,6 +83,7 @@ namespace AnalogControl
             config["windowKey"] = windowKey.currentBind;
             config["lockKey"] = lockKey.currentBind;
             config["pauseKey"] = pauseKey.currentBind;
+            config["parkingBrakeKey"] = parkingBrakeKey.currentBind;
             config.save();
         }
         
@@ -197,6 +199,18 @@ namespace AnalogControl
                     {
                         pauseKey.currentBind = Event.current.keyCode;
                         pauseKey.set = true;
+                    }
+                }
+                if (GUILayout.Button("Parking Brake Key: " + GameSettings.MODIFIER_KEY.primary.ToString() + " => " + (parkingBrakeKey.set ? parkingBrakeKey.currentBind.ToString() : "Not Assigned"), GUILayout.Width(300)))
+                    parkingBrakeKey.set = !parkingBrakeKey.set;
+                if (!parkingBrakeKey.set)
+                {
+                    if (Event.current.keyCode == KeyCode.Escape)
+                        parkingBrakeKey.set = true;
+                    else if (Event.current.type == EventType.KeyDown)
+                    {
+                        parkingBrakeKey.currentBind = Event.current.keyCode;
+                        parkingBrakeKey.set = true;
                     }
                 }
                 isPitchInverted = GUILayout.Toggle(isPitchInverted, "Invert Pitch Control");
