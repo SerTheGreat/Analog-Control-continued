@@ -18,7 +18,10 @@ namespace AnalogControl
         public Rect controlZone;
         public float aeroActuatorScale;
         public float steeringSpeedScale;
-		public CustomKeybind activate, modeSwitch, windowKey, lockKey, pauseKey, parkingBrakeKey;        
+		public CustomKeybind activate, modeSwitch, windowKey, lockKey, pauseKey, parkingBrakeKey, mwThrottleKey;      
+		public float mouseThrottleSensitivity;
+		public bool mwThrottlePress;
+		public bool mwThrottleActivate;		
         
         // config
         private KSP.IO.PluginConfiguration config;
@@ -56,12 +59,17 @@ namespace AnalogControl
             instance.controlZone = instance.config.GetValue<Rect>("controlZone", DEFAULT_CONTROL_ZONE);
             instance.aeroActuatorScale = (float)instance.config.GetValue<double>("aeroActuatorScale", 10f);
             instance.steeringSpeedScale = (float)instance.config.GetValue<double>("steeringSpeedScale", 10f);
+            instance.mouseThrottleSensitivity = (float)instance.config.GetValue<double>("mouseThrottleSensitivity", -0.3f);
+            instance.mwThrottlePress = instance.config.GetValue<bool>("mwThrottlePress", true);
+            instance.mwThrottleActivate = instance.config.GetValue<bool>("mwThrottleActivate", true);
             instance.activate = new CustomKeybind(instance.config.GetValue<KeyCode>("activate", KeyCode.Return));
             instance.modeSwitch = new CustomKeybind(instance.config.GetValue<KeyCode>("modeSwitch", KeyCode.Tab));
             instance.windowKey = new CustomKeybind(instance.config.GetValue<KeyCode>("windowKey", KeyCode.O));
             instance.lockKey = new CustomKeybind(instance.config.GetValue<KeyCode>("lockKey", KeyCode.L));
             instance.pauseKey = new CustomKeybind(instance.config.GetValue<KeyCode>("pauseKey", KeyCode.O));
             instance.parkingBrakeKey = new CustomKeybind(instance.config.GetValue<KeyCode>("parkingBrakeKey", GameSettings.BRAKES.primary));
+            instance.mwThrottleKey = new CustomKeybind(instance.config.GetValue<KeyCode>("mwThrottleKey", KeyCode.Numlock));
+             
             
             instance.targetRect.width = instance.controlZone.width * instance.deadzone.x * 1.5f;
         	instance.targetRect.height = instance.controlZone.height * instance.deadzone.y * 1.5f;
@@ -78,12 +86,16 @@ namespace AnalogControl
             config["controlZone"] = controlZone;
             config["aeroActuatorScale"] = (double)aeroActuatorScale;
             config["steeringSpeedScale"] = (double)steeringSpeedScale;
+            config["mouseThrottleSensitivity"] = (double)mouseThrottleSensitivity;
+            config["mwThrottlePress"] = mwThrottlePress;
+            config["mwThrottleActivate"] = mwThrottlePress;
             config["activate"] = activate.currentBind;
             config["modeSwitch"] = modeSwitch.currentBind;
             config["windowKey"] = windowKey.currentBind;
             config["lockKey"] = lockKey.currentBind;
             config["pauseKey"] = pauseKey.currentBind;
             config["parkingBrakeKey"] = parkingBrakeKey.currentBind;
+            config["mwThrottleKey"] = mwThrottleKey.currentBind;
             config.save();
         }
         
@@ -213,6 +225,30 @@ namespace AnalogControl
                         parkingBrakeKey.set = true;
                     }
                 }
+                if (GUILayout.Button("Mouse Wheel Throttle Key: " + (mwThrottleKey.set ? mwThrottleKey.currentBind.ToString() : "Not Assigned"), GUILayout.Width(300)))
+                    mwThrottleKey.set = !mwThrottleKey.set;
+                if (!mwThrottleKey.set)
+                {
+                    if (Event.current.keyCode == KeyCode.Escape)
+                        parkingBrakeKey.set = true;
+                    else if (Event.current.type == EventType.KeyDown)
+                    {
+                        mwThrottleKey.currentBind = Event.current.keyCode;
+                        mwThrottleKey.set = true;
+                    }
+                }
+             
+                GUILayout.BeginHorizontal();
+                if (GUILayout.Button(mwThrottlePress ? "Press" : "Hold", GUILayout.Width(60))) {
+                	mwThrottlePress = !mwThrottlePress;
+                }
+                GUILayout.Label("the key to");
+                if (GUILayout.Button(mwThrottleActivate ? "Activate" : "Deactivate", GUILayout.Width(80))) {
+                	mwThrottleActivate = !mwThrottleActivate;
+                }
+                GUILayout.Label("mouse throttle");
+                GUILayout.EndHorizontal();
+                
                 isPitchInverted = GUILayout.Toggle(isPitchInverted, "Invert Pitch Control");
                 GUILayout.BeginHorizontal();
                 GUILayout.Label("Deadzone width percentage", GUILayout.Width(200));
@@ -231,11 +267,15 @@ namespace AnalogControl
                 GUILayout.Label("Wheel steering response", GUILayout.Width(200));
                 steeringSpeedScale = GUILayout.HorizontalSlider(steeringSpeedScale, 1, 10f, GUILayout.Width(100));
                 GUILayout.EndHorizontal();
+                GUILayout.BeginHorizontal();
+                GUILayout.Label("Mouse wheel throttle sensitivity", GUILayout.Width(200));
+                mouseThrottleSensitivity = -GUILayout.HorizontalSlider(-mouseThrottleSensitivity, -1, 1, GUILayout.Width(100));
+                GUILayout.EndHorizontal();
                 
-                /*GUILayout.BeginHorizontal();
+                GUILayout.BeginHorizontal();
                 GUILayout.Label("HUD transparency", GUILayout.Width(200));
                 transparency = GUILayout.HorizontalSlider(transparency, 0, 1, GUILayout.Width(100));
-                GUILayout.EndHorizontal();*/
+                GUILayout.EndHorizontal();
              
                 GUILayout.EndVertical();
                 GUILayout.FlexibleSpace();
@@ -279,4 +319,11 @@ namespace AnalogControl
         }
 		
 	}
+	
+	public enum MWThrottleKeyAction {
+		PRESS_TO_ACTIVATE,
+		PRESS_TO_DEACTIVATE,
+		HOLD
+	}
+	
 }

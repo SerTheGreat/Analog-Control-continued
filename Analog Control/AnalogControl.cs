@@ -25,19 +25,23 @@ namespace AnalogControl
         
         // display
         static Texture2D target;
-
-        static Texture2D markerSpot;      
+        static Texture2D markerSpot;
+		static Texture2D thr;        
 
         bool lockInput = false;
         
-        ActuatorOverride actuatorOverride = new ActuatorOverride();    
+        ActuatorOverride actuatorOverride = new ActuatorOverride();
+        MouseWheelOverride mouseWheelOverride;
         
         /// <summary>
         /// Initialise control region size and other user specific params
         /// </summary>
         public void Start()
         {
+       	
             config = Configuration.loadConfig();
+            
+            mouseWheelOverride = MouseWheelOverride.instance(config);
 
             try
             {
@@ -46,7 +50,7 @@ namespace AnalogControl
                     target = new Texture2D(500, 500);
                     target.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control Continued/PluginData/AnalogControl/crosshair-white.png"));
                 }
-                setTransparency(target, config.transparency);
+                //setTransparency(target, config.transparency);
                 
             }
             catch
@@ -60,13 +64,26 @@ namespace AnalogControl
                     markerSpot = new Texture2D(20, 20);
                     markerSpot.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control Continued/PluginData/AnalogControl/spot-white.png"));
                 }
-                setTransparency(markerSpot, config.transparency);
+                //setTransparency(markerSpot, config.transparency);
             }
             catch
             {
                 Debug.Log("Marker overlay setup failed");
             }
-        
+            try
+            {
+                if (thr == null)
+                {
+                    thr = new Texture2D(20, 9);
+                    thr.LoadImage(System.IO.File.ReadAllBytes(KSPUtil.ApplicationRootPath + "GameData/Analog Control Continued/PluginData/AnalogControl/thr.png"));
+                }
+                //setTransparency(thr, config.transparency);
+            }
+            catch
+            {
+                Debug.Log("THR overlay setup failed");
+            }
+            
 	        if (!valuesLoaded) {
             	controlState = ActivationState.Inactive;
             	isRollMode = true;
@@ -117,6 +134,7 @@ namespace AnalogControl
             //MonoBehaviour.Destroy(markerSpot);
             //MonoBehaviour.Destroy(target);
             actuatorOverride.restore(FlightGlobals.ActiveVessel);
+            mouseWheelOverride.restore();
             config.saveConfig();
             GameEvents.onGameStateSave.Remove(onSave);
             GameEvents.onGameStatePostLoad.Remove(onLoad);
@@ -142,9 +160,11 @@ namespace AnalogControl
             	if (controlState == ActivationState.Inactive) {
             		controlState = ActivationState.Paused;
             		actuatorOverride.apply(FlightGlobals.ActiveVessel, config.aeroActuatorScale, config.steeringSpeedScale, isRollMode);
+            		mouseWheelOverride.pause();
             	} else {
             		controlState = ActivationState.Inactive;
             		actuatorOverride.restore(FlightGlobals.ActiveVessel);
+            		mouseWheelOverride.restore();
             	}
             }
             
@@ -159,12 +179,34 @@ namespace AnalogControl
             
             if (controlState == ActivationState.Inactive)
                 return;
+            
+            if (controlState == ActivationState.Paused || controlState == ActivationState.TemporaryPaused) {
+            	mouseWheelOverride.pause();
+            } else {
+            	mouseWheelOverride.unpause();
+            	if (!config.mwThrottleActivate) {
+            		mouseWheelOverride.activate();
+            	}
+            }
 
             if (Input.GetKeyDown(config.modeSwitch.currentBind)) {
             	actuatorOverride.restore(FlightGlobals.ActiveVessel);
                 isRollMode = !isRollMode;
                 actuatorOverride.apply(FlightGlobals.ActiveVessel, config.aeroActuatorScale, config.steeringSpeedScale, isRollMode);
             }
+          
+            if (config.mwThrottlePress) {
+            	if (Input.GetKeyDown(config.mwThrottleKey.currentBind)) {
+	            	mouseWheelOverride.toggle();
+            	}
+            } else {
+            	if (config.mwThrottleActivate ^ Input.GetKey(config.mwThrottleKey.currentBind)) {
+            		mouseWheelOverride.restore();
+            	} else {
+            		mouseWheelOverride.activate();
+            	}
+            }
+            
 
             if (Input.GetKeyDown(config.pauseKey.currentBind))
             {
@@ -186,10 +228,19 @@ namespace AnalogControl
         	config.onGUI(GetInstanceID(), controlState);
             if (controlState != ActivationState.Inactive || config.showWindow)
             {
-            	GUI.color = isRollMode ? Color.green : Color.yellow;
+            	Color color = isRollMode ? Color.green : Color.yellow;
+				color.a = config.transparency;
+            	GUI.color = color; 
                 GUI.DrawTexture(config.targetRect, target);
-                GUI.color = controlState == ActivationState.Paused || controlState == ActivationState.TemporaryPaused ? Color.red : Color.green;
-                GUI.DrawTexture(markerRect, markerSpot);              
+                color = controlState == ActivationState.Paused || controlState == ActivationState.TemporaryPaused ? Color.red : Color.green;
+                color.a = config.transparency;
+                GUI.color = color;
+                GUI.DrawTexture(markerRect, markerSpot);
+                Color thrColor = new Color(color.r, color.g, color.b, color.a / 2);
+                GUI.color = thrColor;
+                if (mouseWheelOverride.active) {
+                	GUI.DrawTexture(new Rect(config.targetRect.center.x - 10, config.targetRect.yMax - 9, 20, 9), thr);
+                }
             }
         }
         
@@ -250,7 +301,7 @@ namespace AnalogControl
             return Mathf.Clamp(response, -1, 1);
         }
 
-        private void setTransparency(Texture2D tex, float transparency)
+        /*private void setTransparency(Texture2D tex, float transparency)
         {
             Color32[] pixels = tex.GetPixels32();
             for (int i = 0; i < pixels.Length; i++)
@@ -259,6 +310,6 @@ namespace AnalogControl
             }
             tex.SetPixels32(pixels);
             tex.Apply();
-        }
+        }*/
     }
 }
