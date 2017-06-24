@@ -67,7 +67,7 @@ namespace AnalogControl
             instance.windowKey = new CustomKeybind(instance.config.GetValue<KeyCode>("windowKey", KeyCode.O));
             instance.lockKey = new CustomKeybind(instance.config.GetValue<KeyCode>("lockKey", KeyCode.L));
             instance.pauseKey = new CustomKeybind(instance.config.GetValue<KeyCode>("pauseKey", KeyCode.O));
-            instance.parkingBrakeKey = new CustomKeybind(instance.config.GetValue<KeyCode>("parkingBrakeKey", GameSettings.BRAKES.primary));
+            instance.parkingBrakeKey = new CustomKeybind(instance.config.GetValue<KeyCode>("parkingBrakeKey", GameSettings.BRAKES.primary.code));
             instance.mwThrottleKey = new CustomKeybind(instance.config.GetValue<KeyCode>("mwThrottleKey", KeyCode.Numlock));
              
             
