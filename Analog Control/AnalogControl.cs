@@ -33,7 +33,12 @@ namespace AnalogControl
         ActuatorOverride actuatorOverride = new ActuatorOverride();
         MouseWheelOverride mouseWheelOverride;
         
-        /// <summary>
+		public void Awake() {
+			GameEvents.onGameStateSave.Add(onSave);
+			GameEvents.onGameStateLoad.Add(onLoad);
+		}
+
+		/// <summary>
         /// Initialise control region size and other user specific params
         /// </summary>
         public void Start()
@@ -93,10 +98,8 @@ namespace AnalogControl
 					actuatorOverride.apply(FlightGlobals.ActiveVessel, config.aeroActuatorScale, config.steeringSpeedScale, isRollMode);            		
             	}
             	valuesLoaded = false;
-            }
+            }            
             
-            GameEvents.onGameStateSave.Add(onSave);
-            GameEvents.onGameStatePostLoad.Add(onLoad);         
         }
         
         void onSave(ConfigNode savedNode) {
@@ -106,9 +109,12 @@ namespace AnalogControl
         	node.AddValue("controlPosition", markerRect.center);
         	savedNode.AddNode(node);
         }
-        
+
         void onLoad(ConfigNode loadedNode) {
-        	applyLoadedValues(loadedNode.GetNode("GAME").GetNode(PERSISTENCE_NODE_NAME).CreateCopy());
+			ConfigNode persistenceNode = loadedNode.GetNode(PERSISTENCE_NODE_NAME);
+			if (persistenceNode != null) {
+				applyLoadedValues(persistenceNode.CreateCopy());
+			}
         }
         
         private void applyLoadedValues(ConfigNode node) {
